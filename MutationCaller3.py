@@ -11,7 +11,6 @@ from numpy import log1p
 import concurrent.futures
 
 #TODO: Handle Phase and IBD uncertainty better
-#TODO: Multichromosome input
 #TODO: Finish testing internal statistical behaviors
 #TODO: Repair parallelization (This requires that I make a forked version of the pyvcf package that uses the correct settings for multiple iterators, which the current cannot do)
 #TODO: Finish integrating two separate IBD
@@ -325,12 +324,15 @@ class OuterTree:
 def vcf_to_range_list(vcf_reader, pool_count):
     ranges = []
     for contig in vcf_reader.contigs:
-        length = vcf_reader.contigs[contig][1]
-        step = length/pool_count
-        start = 0
-        while(start<length):
-            ranges.append((contig, start, start+step))
-            start+=step
+        try:
+            length = vcf_reader.contigs[contig][1]
+            step = length/pool_count
+            start = 0
+            while(start<length):
+                ranges.append((contig, start, start+step))
+                start+=step
+        except:#Avoids an issue with asking for fetching an empty contig region, for which tabix throws an error rather than giving an empty object.
+            continue
     return ranges
 
 
@@ -384,7 +386,7 @@ def main():
 
     output_filename = sys.argv[6]
 
-    pool_jobs = sys.argv[5]# mp.cpu_count() can theoretically get available cores
+    pool_jobs = int(sys.argv[5])# mp.cpu_count() can theoretically get available cores
 
     outer_tree = OuterTree(tree_file_name)
 
@@ -411,8 +413,8 @@ def main():
 
     vcfReader = vcf.Reader(filename="TestInput/183.interval_list_shailee_run_1.vcf.gz")
     # iterators = vcf_to_iterator_list(vcfReader, 3)
-    iterators = single_contig_vcf_to_range_list(vcfReader, 3, "Chr18")
-    with concurrent.futures.ProcessPoolExecutor() as executor:
+    iterators = single_contig_vcf_to_range_list(vcfReader, pool_jobs, "Chr18")
+    with concurrent.futures.ProcessPoolExecutor(max_workers=pool_jobs) as executor:
         for callsite in zip(executor.map(get_call, iterators)):
             print(callsite)
 if __name__ == "__main__":
