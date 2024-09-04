@@ -378,15 +378,25 @@ def main():
     #Sets a parallelization strategy that avoids duplicating things not passed to individual processes, and is robust to multiple POSIX systems.
     #DOES use one thread to manage processes, so one core is going to be devoted towards handling the other spawned processes
 
+    try:
+        mutation_candidate_vcf_name = sys.argv[1]
+        tree_file_name = sys.argv[2]
+        seg_first_order_filename = sys.argv[3]
+        seg_last_order_filename = sys.argv[4]
+        pool_jobs = int(sys.argv[5])  # mp.cpu_count() can theoretically get available cores
+        output_filename = sys.argv[6]
+    except:
+        print("Usage: <tabixed vcf.gz file> <.ped file> <first ordered seg file> <last ordered seg file> <integer count of cores to use> <output filename>\nOrdered segment files can be generated with the double_seg_sorter.sh script using hapIBD formatted input")
+        sys.exit(1)
 
-    mutation_candidate_vcf_name = sys.argv[1]
-    tree_file_name = sys.argv[2]
-    seg_first_order_filename = sys.argv[3]
-    seg_last_order_filename = sys.argv[4]
+    vcf_reader = vcf.Reader(filename=mutation_candidate_vcf_name)
+    iterator_ranges = vcf_to_range_list(vcf_reader, pool_jobs)
 
-    output_filename = sys.argv[6]
-
-    pool_jobs = int(sys.argv[5])# mp.cpu_count() can theoretically get available cores
+    with concurrent.futures.ProcessPoolExecutor(max_workers=pool_jobs) as executor:
+        manager = mp.Manager()
+        lock = manager.lock()
+        for range_val, call_count in zip(iterator_ranges, executor.map(get_call, iterator_ranges, lock)):
+            print(range_val, call_count)
 
     outer_tree = OuterTree(tree_file_name)
 
@@ -411,11 +421,6 @@ def main():
     #pool.close()
     #pool.join()
 
-    vcfReader = vcf.Reader(filename="TestInput/183.interval_list_shailee_run_1.vcf.gz")
-    # iterators = vcf_to_iterator_list(vcfReader, 3)
-    iterators = single_contig_vcf_to_range_list(vcfReader, pool_jobs, "Chr18")
-    with concurrent.futures.ProcessPoolExecutor(max_workers=pool_jobs) as executor:
-        for callsite in zip(executor.map(get_call, iterators)):
-            print(callsite)
+
 if __name__ == "__main__":
     main()
