@@ -71,8 +71,10 @@ def gatherLogLikelihood(viewed_ids, current_id, original_allele, original_id, or
         ibd_likelihood = ibd_probability(True, inner_node.phase, distance, baseLikelihood)
         log_likelihood += inner_node.depth * math.log(read_likelihood(original_allele, inner_node, ibd_likelihood, descendent))
     for parent in outer_pedigree.samples[current_id].parents:#set descendent status to False when going into a parent
+        print("we iterated over a parent")
         log_likelihood += gatherLogLikelihood(viewed_ids, parent, original_allele, original_id, original_haplotype, site, distance + 1, False, outer_pedigree, inner_pedigree, seg_structure, ibd_error_rate)
     for child in outer_pedigree.samples[current_id].children:
+        print("we iterated over a child")
         log_likelihood += gatherLogLikelihood(viewed_ids, child, original_allele, original_id, original_haplotype, site, distance + 1, descendent, outer_pedigree, inner_pedigree, seg_structure, ibd_error_rate)
     return log_likelihood#TODO Need to also return IBD presence in decendents to shore up IBD confidence concerns
 
@@ -226,7 +228,7 @@ class SegSiteStructure:
 
 #Structure for representing the overall tree structure. Not unique to any site
 class OuterNode:
-    def __init__(self, name, mother, father):
+    def __init__(self, name):
         self.name = name
         self.parents = set()
         self.children = set()
@@ -312,12 +314,25 @@ class OuterTree:
     #Expects: sampleID motherID fatherID sex family
     #Does NOT check consistency for sex in input.
     def load_tree(self, treeFileName):
+        # Iterate once to initialise the sample map
         with open(treeFileName) as treeFile:
-            self.sampleCount = 0
-            self.trueSampleCount = 0
+            self.sampleCount = 0 # is this used?
+            self.trueSampleCount = 0 # is this used?
             for line in treeFile:
                 tokens = line.split()
-                self.samples[tokens[0]] = OuterNode(tokens[0],tokens[1],tokens[2])
+                self.samples[tokens[0]] = OuterNode(tokens[0])
+
+        # Iterate again to populate the parent/child relationships
+        with open(treeFileName) as treeFile:
+            for line in treeFile:
+                tokens = line.split()
+                sample = self.samples[tokens[0]]
+                if tokens[1] != "0":
+                    sample.add_parent(tokens[1])
+                    self.samples[tokens[1]].add_child(tokens[0])
+                if tokens[2] != "0":
+                    sample.add_parent(tokens[2])
+                    self.samples[tokens[2]].add_child(tokens[0])    
 
 
 #input:
