@@ -64,6 +64,7 @@ def gatherLogLikelihood(viewed_ids, current_id, original_allele, original_id, or
     log_likelihood = 0.0
     #Iterates over possible haplotypes for current sample, accounts for read evidence in each depending on IBD beliefs
     for read_haplotype in inner_pedigree.map_to_inner_nodes[current_id]:
+        # print(current_id, read_haplotype)
         inner_node = inner_pedigree.map_to_inner_nodes[current_id][read_haplotype]
         baseLikelihood = ibd_error_rate
         if(seg_structure.is_ibd(original_id, original_haplotype, current_id, read_haplotype, site)):
@@ -91,10 +92,14 @@ def gather_likelihoods_for_variants(contig_iterator, outer_tree, seg_first_order
         with open(seg_last_order_filename) as last_ordered_file:
             structure = SegSiteStructure(first_ordered_file, last_ordered_file)#Starts a segment tracker for an efficient storage of IBD near the current site.
             for site_record in contig_iterator:
+                print("\nSite: ", site_record.POS)
                 inner_tree = InnerTree(site_record)#builds a site-specific inner tree structure from the genotype calls at this site
                 likelihoods = []
                 likelihoods_to_print = str(site_record.POS)
                 for sample in site_record.samples:
+
+                    print(f"The segment map at sample {sample.sample} is:")
+                    print(structure.seg_map)
 
                     viewed_ids = set()
                     haplotype = 0
@@ -115,6 +120,9 @@ def gather_likelihoods_for_variants(contig_iterator, outer_tree, seg_first_order
                 for sample_index in range(0, len(likelihoods)):
                     likelihoods_to_print += "\t{:.2f}".format(likelihoods[sample_index]-likelihood_sum)
                 print(likelihoods_to_print)
+
+    print("The segment map at the end of the contig is:")
+    print(structure.seg_map)
 
 
 
@@ -165,12 +173,14 @@ class SegSiteStructure:
         self.doubt_map = set() # TODO: set up input to account for uncertainty in IBD
 
     def add_segment(self, seg):
+            print("we're adding an IBD segment!")
             segID = seg.get_pairing_id()
             if(not segID in self.seg_map):
                 #segList.add(seg)
                 self.seg_map[segID]=seg
                 self.seg_map[seg.get_reverse_pairing_id()]=seg
     def remove_segment(self, seg):
+            print("we're removing an IBD segment!")
             segID = seg.get_pairing_id()
             if(segID in self.seg_map):
                 #segList.add(seg)
@@ -216,6 +226,10 @@ class SegSiteStructure:
 
     #Checks if the current site is registered as IBD for the pair of samples and haplotypes, or if the samples/haplotypes refer to the same haplotype.
     def is_ibd(self, sample1, haplotype1, sample2, haplotype2, site):
+        if ((sample1,haplotype1) == (sample2,haplotype2)):
+            print("is_ibd returns True because we're comparing identical samples and haplotypes")
+        if (((sample1, haplotype1, sample2, haplotype2) in self.seg_map) and self.seg_map[(sample1, haplotype1, sample2, haplotype2)].overlap(site)):
+            print("is_ibd returns True because we're comparing overlapping segments")
         return ((sample1,haplotype1) == (sample2,haplotype2)) or (((sample1, haplotype1, sample2, haplotype2) in self.seg_map) and self.seg_map[(sample1, haplotype1, sample2, haplotype2)].overlap(site))
 
 
